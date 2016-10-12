@@ -102,7 +102,6 @@ CMatrix<float> A(9, 2*model.size());
  //first equation     
       
         A(0,2*i)=0;
-
         A(1,2*i)=0;
         A(2,2*i)=0; 
         A(3, 2*i)=-model[i].x;
@@ -200,8 +199,9 @@ void normalize(std::vector<point> &data, CMatrix<float> transform){
 //Z transform Z= (x-mean)/sigma
 
     for(unsigned int i=0; i<data.size(); i++){
-             data[i].x=  transform(0,0)*data[i].x+ transform(0,2);
-             data[i].y=transform(1,1)*data[i].y +transform(1,2);
+             data[i].x= transform(0,0)*data[i].x+ transform(0,2);
+             data[i].y= transform(1,1)*data[i].y + transform(1,2);
+
     }
 
 
@@ -439,6 +439,87 @@ return K;
 
 }
 
+void calculateExternalParameters(CMatrix<float> &Rot, CMatrix<float> &trans,CMatrix<float> K, CMatrix<float> H ){
+
+    K.inv();
+
+    float n;//normalization factor
+
+    float A= K(0,0)*H(0,0) +  K(0,1)*H(1,0) + K(0,2)*H(2,0);
+    float B = K(1,0)*H(0,0) +  K(1,1)*H(1,0) +K(1,2)*H(2,0);
+    float C = K(2,0)*H(0,0) +  K(2,1)*H(1,0) +K(2,2)*H(2,0);
+    n=1/sqrt( A*A +B*B +C*C);
+
+
+    CMatrix<float> r1(3,1);//rot1 vector
+
+    r1(0,0)=n*( K(0,0)*H(0,0)+  K(0,1)*H(1,0)  + K(0,2)*H(2,0) );
+    r1(1,0)=n*(K(1,0)*H(0,0) +  K(1,1)*H(1,0) +K(1,2)*H(2,0) );
+    r1(2,0)=n*(K(2,0)*H(0,0) +  K(2,1)*H(1,0) +K(2,2)*H(2,0) );
+
+    CMatrix<float> r2(3,1);//rot1 vector
+
+    r2(0,0)=n*( K(0,0)*H(0,1)+  K(0,1)*H(1,1)  + K(0,2)*H(2,1) );
+    r2(1,0)=n*(K(1,0)*H(0,1) +  K(1,1)*H(1,1) +K(1,2)*H(2,1) );
+    r2(2,0)=n*(K(2,0)*H(0,1) +  K(2,1)*H(1,1) +K(2,2)*H(2,1) );
+
+    CMatrix<float> r3(3,1);//rot1 vector
+
+    r3(0,0)= r1(1,0)*r2(2,0)-r1(2,0)*r2(1,0);
+    r3(1,0) = r1(2,0)*r2(0,0)-r1(0,0)*r1(3,0);
+    r3(2,0) =r1(0,0)*r2(1,0)-r1(1,0)*r2(0,0);
+
+    CMatrix<float> T(3,1);
+
+    T(0,0)=n*( K(0,0)*H(0,2)+  K(0,1)*H(1,2)  + K(0,2)*H(2,2) );
+    T(1,0)=n*(K(1,0)*H(0,2) +  K(1,1)*H(1,2) +K(1,2)*H(2,2) );
+    T(2,0)=n*(K(2,0)*H(0,2) +  K(2,1)*H(1,2) +K(2,2)*H(2,2) );
+
+//Correct rotation error
+
+
+ CMatrix<float> R(3,3);
+
+    R(0,0)=r1(0,0);  R(0,1)=r2(0,0); R(0,2)=r3(0,0);
+    R(1,0)=r1(1,0);  R(1,1)=r2(1,0); R(1,2)=r3(1,0);
+    R(2,0)=r1(2,0);  R(2,1)=r2(2,0); R(2,2)=r3(2,0);
+
+    CMatrix<float> S(3,3); 
+    CMatrix<float> V(3,3);
+   // NMath::svd(R, S, V, true);
+    //S.identity(3);
+   // NMath::svdBack(R, S, V);
+
+
+//results
+    trans=T;
+    Rot=R;
+
+}
+
+CMatrix<float> GetProjectMatrix(CMatrix<float> K, CMatrix<float> R, CMatrix<float> t, float lambda){
+
+    //retrieve transformation matrix
+    //H = lambda * K * (r1,r2,t)
+    CMatrix<float> H(3,3);
+
+
+
+    H(0,0)=lambda* ( K(0,0)*R(0,0)+K(0,1)*R(1,0)+K(0,2)*R(2,0) );
+    H(0,1)=lambda* ( K(0,0)*R(0,1)+K(0,1)*R(1,1)+K(0,2)*R(2,1) );
+    H(0,2)=lambda* ( K(0,0)*t(0,0)+K(0,1)*t(1,0)+K(0,2)*t(2,0) );        
+
+    H(1,0)=lambda* ( K(1,0)*R(0,0)+K(1,1)*R(1,0)+K(1,2)*R(2,0) );
+    H(1,1)=lambda* ( K(1,0)*R(0,1)+K(1,1)*R(1,1)+K(1,2)*R(2,1) );
+    H(1,2)=lambda* ( K(1,0)*t(0,0)+K(1,1)*t(1,0)+K(1,2)*t(2,0) );  
+
+    H(2,0)=lambda* ( K(2,0)*R(0,0)+K(2,1)*R(1,0)+K(2,2)*R(2,0) );
+    H(2,1)=lambda* ( K(2,0)*R(0,1)+K(2,1)*R(1,1)+K(2,2)*R(2,1) );
+    H(2,2)=lambda* ( K(2,0)*t(0,0)+K(2,1)*t(1,0)+K(2,2)*t(2,0) ); 
+    return H;
+
+}
+
 //int main(int argc, char** argv) {  
 int main(){
 
@@ -528,23 +609,92 @@ int main(){
     CMatrix<float> H4=getHomography(V4, Tmodel, Tdata4 );
     CMatrix<float> H5=getHomography(V5, Tmodel, Tdata5 );
 
+ 
     
+CMatrix<float> image;
 
+//Make the Homography projection
+image.readFromPGM("CalibIm1.pgm");
+makeProjection2image(H1,  model, image);
+image.writeToPGM("H1.pgm");
+
+image.readFromPGM("CalibIm2.pgm");
+makeProjection2image(H2,  model, image);
+image.writeToPGM("H2.pgm");
+
+image.readFromPGM("CalibIm3.pgm");
+makeProjection2image(H3,  model, image);
+image.writeToPGM("H3.pgm");
+
+image.readFromPGM("CalibIm4.pgm");
+makeProjection2image(H4,  model, image);
+image.writeToPGM("H4.pgm");
+
+image.readFromPGM("CalibIm5.pgm");
+makeProjection2image(H5,  model, image);
+image.writeToPGM("H5.pgm");
+
+//Calculate internal and external parameters for the camera
 
  CMatrix<float> U=HomographyConstraintsMatrix(H1,  H2,  H3,  H4,  H5 );
-
-
     CMatrix<float> S(6,6); 
     CMatrix<float> V(6,6);
     NMath::svd(U, S, V, true);
     float lambda;
-  CMatrix<float> K=calculateInternalParam(  V,  lambda);
-    
-CMatrix<float> image;
+
+    CMatrix<float> K=calculateInternalParam(  V,  lambda);
+
+    CMatrix<float> R1; 
+    CMatrix<float> T1;
+    calculateExternalParameters(R1, T1,K, H1 );
+
+    CMatrix<float> R2; 
+    CMatrix<float> T2;
+    calculateExternalParameters(R2, T2,K, H2 );
+
+    CMatrix<float> R3; 
+    CMatrix<float> T3;
+    calculateExternalParameters(R3, T3,K, H3 );
+
+
+
+    CMatrix<float> R4; 
+    CMatrix<float> T4;
+    calculateExternalParameters(R4, T4,K, H4 );
+
+
+    CMatrix<float> R5; 
+    CMatrix<float> T5;
+    calculateExternalParameters(R5, T5,K, H5 );
+
+    CMatrix<float> P1=GetProjectMatrix( K,  R1, T1, 1);
+    CMatrix<float> P2=GetProjectMatrix( K,  R2, T2, 1);
+    CMatrix<float> P3=GetProjectMatrix( K,  R3, T3, 1);
+    CMatrix<float> P4=GetProjectMatrix( K,  R4, T4, 1);
+    CMatrix<float> P5=GetProjectMatrix( K,  R5, T5, 1);
+
+//Make the Projections
+
+image.readFromPGM("CalibIm1.pgm");
+makeProjection2image(P1,  model, image);
+image.writeToPGM("P1.pgm");
+
+image.readFromPGM("CalibIm2.pgm");
+makeProjection2image(P2,  model, image);
+image.writeToPGM("P2.pgm");
+
+image.readFromPGM("CalibIm3.pgm");
+makeProjection2image(P3,  model, image);
+image.writeToPGM("P3.pgm");
+
+image.readFromPGM("CalibIm4.pgm");
+makeProjection2image(P4,  model, image);
+image.writeToPGM("P4.pgm");
 
 image.readFromPGM("CalibIm5.pgm");
+makeProjection2image(P5,  model, image);
+image.writeToPGM("P5.pgm");
 
-makeProjection2image(H5,  model, image);
-image.writeToPGM("result.pgm");
+
 //  return 0;
 }
