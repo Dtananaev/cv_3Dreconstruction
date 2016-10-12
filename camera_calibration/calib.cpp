@@ -281,7 +281,7 @@ void makeProjection2image(CMatrix<float> Homography,  std::vector<point> model, 
 
 std::vector<point> image_points;
 
-    for(int i=0;i<model.size();i++){
+    for(unsigned int i=0;i<model.size();i++){
         float x=Homography(0,0)*model[i].x+Homography(0,1)*model[i].y+Homography(0,2);
         float y=Homography(1,0)*model[i].x+Homography(1,1)*model[i].y+Homography(1,2);
         float n=Homography(2,0)*model[i].x+Homography(2,1)*model[i].y+Homography(2,2);
@@ -294,7 +294,7 @@ std::vector<point> image_points;
         image_points.push_back(result);                                  
     }
 
-     for(int i=0;i<image_points.size();i++){
+     for(unsigned int i=0;i<image_points.size();i++){
 
      image(image_points[i].x,image_points[i].y)=0;
     }
@@ -439,8 +439,8 @@ return K;
 
 }
 
-int main(int argc, char** argv) {  
-
+//int main(int argc, char** argv) {  
+int main(){
 
     
 
