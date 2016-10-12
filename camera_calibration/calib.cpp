@@ -11,6 +11,7 @@
 #include <iostream>  /// contains: std::cout etc.
 #include "CMatrix.h"
 #include "CTensor.h"
+#include "CVector.h"
 #include <vector>
 #include <string>
 #include <fstream>
@@ -187,24 +188,24 @@ CalcMeanSigma(data, &point::y, meanY, sigmaY);
 //Z transform Z= (x-mean)/sigma
                 //x=z*sigma +mean
     transform(0,0)=1/sigmaX;
-    transform(0,2)=meanX/sigmaX;
+    transform(0,2)=-meanX/sigmaX;
     transform(1,1)=1/sigmaY;
-    transform(1,2)=meanY/sigmaY;
+    transform(1,2)=-meanY/sigmaY;
     transform(2,2)=1;
 
     return transform;
 }
-void normalize(std::vector<point> &data, CMatrix<float> transform){
+std::vector<point>  normalize(std::vector<point> data, CMatrix<float> transform){
 
 //Z transform Z= (x-mean)/sigma
-
+std::vector<point> result(data.size());
     for(unsigned int i=0; i<data.size(); i++){
-             data[i].x= transform(0,0)*data[i].x+ transform(0,2);
-             data[i].y= transform(1,1)*data[i].y + transform(1,2);
+             result[i].x= transform(0,0)*data[i].x+ transform(0,2);
+             result[i].y= transform(1,1)*data[i].y + transform(1,2);
 
     }
 
-
+    return result;
 }
 
 CMatrix<float> getHomography(CMatrix<float> V, CMatrix<float> Tmodel, CMatrix<float> Tdata){
@@ -289,8 +290,24 @@ std::vector<point> image_points;
         point result;
         result.x=x/n;
         result.y=y/n;
-       // std::cout<<"x "<<result.x<<"\n";
-      //  std::cout<<"y "<<result.y<<"\n";
+
+
+        std::cout<<"x "<<result.x<<"\n";
+        std::cout<<"y "<<result.y<<"\n";
+
+        if(result.x>=image.xSize()){
+            result.x=image.xSize()-1;
+            
+    }else if(result.x<0){
+        result.x=0;
+    }
+
+        if(result.y>=image.ySize()){
+            result.y=image.ySize()-1;
+            
+    }else if(result.y<0){
+        result.y=0;
+    }
         image_points.push_back(result);                                  
     }
 
@@ -520,6 +537,119 @@ CMatrix<float> GetProjectMatrix(CMatrix<float> K, CMatrix<float> R, CMatrix<floa
 
 }
 
+CVector<float> calculateLenseDistortion(CMatrix<float> Homography,CMatrix<float> K, std::vector<point> model, std::vector<point> data){
+
+
+std::vector<point> proj_points;
+
+    for(unsigned int i=0;i<model.size();i++){
+        float x=Homography(0,0)*model[i].x+Homography(0,1)*model[i].y+Homography(0,2);
+        float y=Homography(1,0)*model[i].x+Homography(1,1)*model[i].y+Homography(1,2);
+        float n=Homography(2,0)*model[i].x+Homography(2,1)*model[i].y+Homography(2,2);
+            
+        point result;
+        result.x=x/n;
+        result.y=y/n;
+       // std::cout<<"x "<<result.x<<"\n";
+      //  std::cout<<"y "<<result.y<<"\n";
+        proj_points.push_back(result);                                  
+    }
+
+    CMatrix<float> A(2,2*proj_points.size());
+    CVector<float> vec(2*proj_points.size());
+    
+    std::vector<float> result;
+    //Create matrix A
+    for( unsigned int i=0; i<proj_points.size();i++){
+        double a=proj_points[i].x-K(0,2);
+        double b=proj_points[i].y-K(1,2);
+        double r=sqrt(a*a+b*b);  
+
+        A(0,2*i)=a*r;  
+        A(1,2*i)=a*r*r;
+        A(0,2*i+1)=b*r;  
+        A(1,2*i+1)=b*r*r; 
+        vec[2*i] = data[i].x-proj_points[i].x;
+        vec[2*i+1] = data[i].y-proj_points[i].y;
+        //    std::cout<<"deltaX "<<vec[2*i]<<"\n";
+    
+     
+       //     std::cout<<"deltaY "<<vec[2*i+1]<<"\n";
+
+       // std::cin.get();
+     //  float deltaX=data[i].x-proj_points[i].x;
+       // float deltaY=data[i].y-proj_points[i].y;
+        // result.push_back(data[i].x-proj_points[i].x);
+       // result.push_back(data[i].y-proj_points[i].y);
+ 
+
+    }
+
+    CVector<float> k=NMath::leastSquares(A,vec);
+
+
+return k;
+
+
+}
+void vizData(std::vector<point> model, CMatrix<float> &image){
+
+ for(unsigned int i=0;i<model.size();i++){
+    
+
+     //std::cout<<"x "<<model[i].x<<"\n";
+  //  std::cout<<"y "<<model[i].y<<"\n";
+     image(model[i].x,model[i].y)=0;
+    }
+
+}
+void makeProjection2imageCorrected(CMatrix<float> Homography,  std::vector<point> model, CMatrix<float> &image,CVector<float> k, CMatrix<float> K, std::vector<point> data ){
+
+std::vector<point> image_points;
+    double error_before=0;
+    double error_after=0;
+    for(unsigned int i=0;i<model.size();i++){
+        float x=Homography(0,0)*model[i].x+Homography(0,1)*model[i].y+Homography(0,2);
+        float y=Homography(1,0)*model[i].x+Homography(1,1)*model[i].y+Homography(1,2);
+        float n=Homography(2,0)*model[i].x+Homography(2,1)*model[i].y+Homography(2,2);
+            
+     
+        point result;
+        result.x=x/n;
+        result.y=y/n;
+
+         error_before+=sqrt( (data[i].x-result.x)*(data[i].x-result.x) +(data[i].y-result.y)*(data[i].y-result.y)  );
+
+        //correcton with respect to the lense distortion effect
+        double a=result.x-K(0,2);
+        double b=result.y-K(1,2);
+        double r=sqrt(a*a+b*b); 
+           // std::cout<<"r "<<r<<"\n";
+ 
+        double L=1+k[0]*r+k[1]*r*r;
+      //     std::cout<<"L "<<L<<"\n";
+    //  std::cout<<"x before "<<result.x<<"\n";
+      //  std::cout<<"y  before "<<result.y<<"\n";
+        result.x=L*result.x;
+        result.y=L* result.y;
+        //std::cout<<"x "<<result.x<<"\n";
+       // std::cout<<"y "<<result.y<<"\n";
+        error_after+=sqrt( (data[i].x-result.x)*(data[i].x-result.x) +(data[i].y-result.y)*(data[i].y-result.y)  );
+
+        image_points.push_back(result);                                  
+    }
+    error_before=error_before/image_points.size();
+     error_after=error_after/image_points.size();
+    std::cout<<"Error of direct projection "<<error_before<<"\n";
+    std::cout<<"Error of  projection with lenses effect "<<error_after<<"\n";
+     for(unsigned int i=0;i<image_points.size();i++){
+
+     image(image_points[i].x,image_points[i].y)=0;
+    }
+
+
+}
+
 //int main(int argc, char** argv) {  
 int main(){
 
@@ -564,19 +694,19 @@ int main(){
     CMatrix<float> Tdata4=CalcTransform(data4);  
     CMatrix<float> Tdata5=CalcTransform(data5);   
     //normalization
-    normalize(model, Tmodel);
-    normalize(data1, Tdata1); 
-    normalize(data2, Tdata2); 
-    normalize(data3, Tdata3); 
-    normalize(data4, Tdata4); 
-    normalize(data5, Tdata5); 
+     std::vector<point> Nmodel=normalize(model, Tmodel);
+     std::vector<point> Ndata1=normalize(data1, Tdata1); 
+     std::vector<point> Ndata2=normalize(data2, Tdata2); 
+     std::vector<point> Ndata3=normalize(data3, Tdata3); 
+     std::vector<point> Ndata4=normalize(data4, Tdata4); 
+     std::vector<point> Ndata5=normalize(data5, Tdata5); 
 
 
-    CMatrix<float> A1=createMatrix(model,data1 );
-    CMatrix<float> A2=createMatrix(model,data2 );
-    CMatrix<float> A3=createMatrix(model,data3 );
-    CMatrix<float> A4=createMatrix(model,data4 );
-    CMatrix<float> A5=createMatrix(model,data5 );
+    CMatrix<float> A1=createMatrix(Nmodel,Ndata1 );
+    CMatrix<float> A2=createMatrix(Nmodel,Ndata2 );
+    CMatrix<float> A3=createMatrix(Nmodel,Ndata3 );
+    CMatrix<float> A4=createMatrix(Nmodel,Ndata4 );
+    CMatrix<float> A5=createMatrix(Nmodel,Ndata5 );
 
     std::cout<<"A1 size x "<<A1.xSize()<<"\n";
     std::cout<<"A1 size y "<<A1.ySize()<<"\n";
@@ -614,8 +744,11 @@ int main(){
 CMatrix<float> image;
 
 //Make the Homography projection
+std::cout<<"1"<<"\n";
 image.readFromPGM("CalibIm1.pgm");
+std::cout<<"2"<<"\n";
 makeProjection2image(H1,  model, image);
+std::cout<<"3"<<"\n";
 image.writeToPGM("H1.pgm");
 
 image.readFromPGM("CalibIm2.pgm");
@@ -667,11 +800,11 @@ image.writeToPGM("H5.pgm");
     CMatrix<float> T5;
     calculateExternalParameters(R5, T5,K, H5 );
 
-    CMatrix<float> P1=GetProjectMatrix( K,  R1, T1, 1);
-    CMatrix<float> P2=GetProjectMatrix( K,  R2, T2, 1);
-    CMatrix<float> P3=GetProjectMatrix( K,  R3, T3, 1);
-    CMatrix<float> P4=GetProjectMatrix( K,  R4, T4, 1);
-    CMatrix<float> P5=GetProjectMatrix( K,  R5, T5, 1);
+    CMatrix<float> P1=GetProjectMatrix( K,  R1, T1, lambda);
+    CMatrix<float> P2=GetProjectMatrix( K,  R2, T2, lambda);
+    CMatrix<float> P3=GetProjectMatrix( K,  R3, T3, lambda);
+    CMatrix<float> P4=GetProjectMatrix( K,  R4, T4, lambda);
+    CMatrix<float> P5=GetProjectMatrix( K,  R5, T5, lambda);
 
 //Make the Projections
 
@@ -696,5 +829,58 @@ makeProjection2image(P5,  model, image);
 image.writeToPGM("P5.pgm");
 
 
+//calculate lense distortions
+
+   CVector<float> k=calculateLenseDistortion(P5, K, model, data5);
+
+    std::cout<<"k size "<<k.size()<<"\n";
+
+    std::cout<<"k1 "<<k[1]<<"\n";
+    std::cout<<"k2 "<<k[2]<<"\n";
+
+
+std::cout<<"Image 1 "<<"\n";
+image.readFromPGM("CalibIm1.pgm");
+makeProjection2imageCorrected(P1,  model, image, k, K, data1);
+image.writeToPGM("C1.pgm");
+
+std::cout<<"Image 2 "<<"\n";
+image.readFromPGM("CalibIm2.pgm");
+makeProjection2imageCorrected(P2,  model, image,k , K, data2);
+image.writeToPGM("C2.pgm");
+
+std::cout<<"Image 3 "<<"\n";
+image.readFromPGM("CalibIm3.pgm");
+makeProjection2imageCorrected(P3,  model, image,k,K,data3);
+image.writeToPGM("C3.pgm");
+
+std::cout<<"Image 4 "<<"\n";
+image.readFromPGM("CalibIm4.pgm");
+makeProjection2imageCorrected(P4,  model, image,k,K,data4);
+image.writeToPGM("C4.pgm");
+std::cout<<"Image 5 "<<"\n";
+image.readFromPGM("CalibIm5.pgm");
+makeProjection2imageCorrected(P5,  model, image,k,K,data5);
+image.writeToPGM("C5.pgm");
+
+
+image.readFromPGM("CalibIm1.pgm");
+vizData( data1, image);
+image.writeToPGM("D1.pgm");
+
+
+image.readFromPGM("CalibIm2.pgm");
+vizData( data2, image);
+image.writeToPGM("D2.pgm");
+
+image.readFromPGM("CalibIm3.pgm");
+vizData( data3, image);
+image.writeToPGM("D3.pgm");
+image.readFromPGM("CalibIm4.pgm");
+vizData( data4, image);
+image.writeToPGM("D4.pgm");
+image.readFromPGM("CalibIm5.pgm");
+vizData( data5, image);
+image.writeToPGM("D5.pgm");
 //  return 0;
 }
