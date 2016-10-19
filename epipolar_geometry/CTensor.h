@@ -10,8 +10,8 @@
 #include <fstream>
 #include <string>
 #include <sstream>
-#include <CMatrix.h>
-#include <NMath.h>
+#include "CMatrix.h"
+#include "NMath.h"
 
 template <class T>
 class CTensor {
@@ -31,11 +31,15 @@ public:
   void setSize(int aXSize, int aYSize, int aZSize);
   // Downsamples the tensor
   void downsample(int aNewXSize, int aNewYSize);
+  void downsample(int aNewXSize, int aNewYSize, CMatrix<float>& aConfidence);
+  void downsample(int aNewXSize, int aNewYSize, CTensor<float>& aConfidence);
   // Upsamples the tensor
   void upsample(int aNewXSize, int aNewYSize);
   void upsampleBilinear(int aNewXSize, int aNewYSize);
   // Fills the tensor with the value aValue (see also operator =)
   void fill(const T aValue);
+  // Fills a rectangular area with the value aValue
+  void fillRect(const CVector<T>& aValue, int ax1, int ay1, int ax2, int ay2);
   // Copies a box from the tensor into aResult, the size of aResult will be adjusted
   void cut(CTensor<T>& aResult, int x1, int y1, int z1, int x2, int y2, int z2);
   // Copies aCopyFrom at a certain position of the tensor
@@ -49,14 +53,12 @@ public:
   void normalizeEach(T aMin, T aMax, T aInitialMin = -30000, T aInitialMax = 30000);
   void normalize(T aMin, T aMax, int aChannel, T aInitialMin = -30000, T aInitialMax = 30000);
   void normalize(T aMin, T aMax, T aInitialMin = -30000, T aInitialMax = 30000);
+  // Converts from RGB to CIELab color space and vice-versa
+  void rgbToCielab();
+  void cielabToRGB();
   // Draws a line into the image (only for mZSize = 3)
   void drawLine(int dStartX, int dStartY, int dEndX, int dEndY, T aValue1 = 255, T aValue2 = 255, T aValue3 = 255);
-
-  // Computes Fourier transform and inverse Fourier transform
-  // Image size has to be a power of 2, the two tensor channels comprise the real and imaginary part
-  // The zero frequency is located in the center of the result
-  void fft();
-  void ifft();
+  void drawRect(int dStartX, int dStartY, int dEndX, int dEndY, T aValue1 = 255, T aValue2 = 255, T aValue3 = 255);
 
   // Applies a similarity transform (translation, rotation, scaling) to the image
   void applySimilarityTransform(CTensor<T>& aWarped, CMatrix<bool>& aOutside, float tx, float ty, float cx, float cy, float phi, float scale);
@@ -174,6 +176,7 @@ struct ETensorIncompatibleSize {
 template <class T>
 inline CTensor<T>::CTensor() {
   mData = 0;
+  mXSize = mYSize = mZSize = 0;
 }
 
 // constructor
@@ -204,7 +207,7 @@ CTensor<T>::CTensor(const int aXSize, const int aYSize, const int aZSize, const 
 // destructor
 template <class T>
 CTensor<T>::~CTensor() {
-  delete [] mData;
+  delete[] mData;
 }
 
 // setSize
@@ -226,6 +229,42 @@ void CTensor<T>::downsample(int aNewXSize, int aNewYSize) {
     CMatrix<T> aTemp(mXSize,mYSize);
     getMatrix(aTemp,z);
     aTemp.downsample(aNewXSize,aNewYSize);
+    for (int i = 0; i < aSize; i++)
+      mData2[i+z*aSize] = aTemp.data()[i];
+  }
+  delete[] mData;
+  mData = mData2;
+  mXSize = aNewXSize;
+  mYSize = aNewYSize;
+}
+
+template <class T>
+void CTensor<T>::downsample(int aNewXSize, int aNewYSize, CMatrix<float>& aConfidence) {
+  T* mData2 = new T[aNewXSize*aNewYSize*mZSize];
+  int aSize = aNewXSize*aNewYSize;
+  for (int z = 0; z < mZSize; z++) {
+    CMatrix<T> aTemp(mXSize,mYSize);
+    getMatrix(aTemp,z);
+    aTemp.downsample(aNewXSize,aNewYSize,aConfidence);
+    for (int i = 0; i < aSize; i++)
+      mData2[i+z*aSize] = aTemp.data()[i];
+  }
+  delete[] mData;
+  mData = mData2;
+  mXSize = aNewXSize;
+  mYSize = aNewYSize;
+}
+
+template <class T>
+void CTensor<T>::downsample(int aNewXSize, int aNewYSize, CTensor<float>& aConfidence) {
+  T* mData2 = new T[aNewXSize*aNewYSize*mZSize];
+  int aSize = aNewXSize*aNewYSize;
+  CMatrix<float> aConf(mXSize,mYSize);
+  for (int z = 0; z < mZSize; z++) {
+    CMatrix<T> aTemp(mXSize,mYSize);
+    getMatrix(aTemp,z);
+    aConfidence.getMatrix(aConf,z);
+    aTemp.downsample(aNewXSize,aNewYSize,aConf);
     for (int i = 0; i < aSize; i++)
       mData2[i+z*aSize] = aTemp.data()[i];
   }
@@ -277,6 +316,17 @@ void CTensor<T>::fill(const T aValue) {
   int wholeSize = mXSize*mYSize*mZSize;
   for (register int i = 0; i < wholeSize; i++)
     mData[i] = aValue;
+}
+
+// fillRect
+template <class T>
+void CTensor<T>::fillRect(const CVector<T>& aValue, int ax1, int ay1, int ax2, int ay2) {
+  for (int z = 0; z < mZSize; z++) {
+    T val = aValue(z);
+    for (int y = ay1; y <= ay2; y++)
+      for (register int x = ax1; x <= ax2; x++)
+        operator()(x,y,z) = val;
+  }
 }
 
 // cut
@@ -448,6 +498,15 @@ void CTensor<T>::drawLine(int dStartX, int dStartY, int dEndX, int dEndY, T aVal
   }
 }
 
+// drawRect
+template <class T>
+void CTensor<T>::drawRect(int dStartX, int dStartY, int dEndX, int dEndY, T aValue1, T aValue2, T aValue3) {
+  drawLine(dStartX,dStartY,dEndX,dStartY,aValue1,aValue2,aValue3);
+  drawLine(dStartX,dEndY,dEndX,dEndY,aValue1,aValue2,aValue3);
+  drawLine(dStartX,dStartY,dStartX,dEndY,aValue1,aValue2,aValue3);
+  drawLine(dEndX,dStartY,dEndX,dEndY,aValue1,aValue2,aValue3);
+}
+
 template <class T>
 void CTensor<T>::normalize(T aMin, T aMax, T aInitialMin, T aInitialMax) {
   int aSize = mXSize*mYSize*mZSize;
@@ -465,6 +524,74 @@ void CTensor<T>::normalize(T aMin, T aMax, T aInitialMin, T aInitialMax) {
     mData[i] -= aTemp1;
     mData[i] *= aTemp2;
   }
+}
+
+template <class T>
+void CTensor<T>::rgbToCielab() {
+  for (int y = 0; y < mYSize; y++)
+    for (int x = 0; x < mXSize; x++) {
+      float R = operator()(x,y,0)*0.003921569;
+      float G = operator()(x,y,1)*0.003921569;
+      float B = operator()(x,y,2)*0.003921569;
+      if (R>0.0031308) R = pow((R + 0.055)*0.9478673, 2.4); else R *= 0.077399381;
+      if (G>0.0031308) G = pow((G + 0.055)*0.9478673, 2.4); else G *= 0.077399381;
+      if (B>0.0031308) B = pow((B + 0.055)*0.9478673, 2.4); else B *= 0.077399381;
+      //Observer. = 2?, Illuminant = D65
+      float X = R * 0.4124 + G * 0.3576 + B * 0.1805;
+      float Y = R * 0.2126 + G * 0.7152 + B * 0.0722;
+      float Z = R * 0.0193 + G * 0.1192 + B * 0.9505;
+      X *= 1.052111;
+      Z *= 0.918417;
+      if (X > 0.008856) X = pow(X,0.33333333333); else X = 7.787*X + 0.137931034;
+      if (Y > 0.008856) Y = pow(Y,0.33333333333); else Y = 7.787*Y + 0.137931034;
+      if (Z > 0.008856) Z = pow(Z,0.33333333333); else Z = 7.787*Z + 0.137931034;
+      operator()(x,y,0) = 1000.0*((295.8*Y) - 40.8)/255.0;
+      operator()(x,y,1) = 128.0+637.5*(X-Y);
+      operator()(x,y,2) = 128.0+255.0*(Y-Z);
+    }
+}
+
+template <class T>
+void CTensor<T>::cielabToRGB() {
+  for (int y = 0; y < mYSize; y++)
+    for (int x = 0; x < mXSize; x++) {
+      float L = operator()(x,y,0)*0.255;
+      float A = operator()(x,y,1);
+      float B = operator()(x,y,2);
+      float Y = (L+40.8)*0.00338066;
+      float X = (A-128.0+637.5*Y)*0.0015686;
+      float Z = (128.0+255.0*Y-B)*0.00392157;
+      float temp = Y*Y*Y;
+      if (temp > 0.008856) Y = temp;
+      else Y = (Y-0.137931034)*0.12842;
+      temp = X*X*X;
+      if (temp > 0.008856) X = temp;
+      else X = (X-0.137931034)*0.12842;
+      temp = Z*Z*Z;
+      if (temp > 0.008856) Z = temp;
+      else Z = (Z-0.137931034)*0.12842;
+      X *= 0.95047;
+      Y *= 1.0;
+      Z *= 1.08883;
+      float r = 3.2406*X-1.5372*Y-0.4986*Z;
+      float g = -0.9689*X+1.8758*Y+0.0415*Z;
+      float b = 0.0557*X-0.204*Y+1.057*Z;
+      if (r < 0) r = 0;
+      temp = 1.055*pow(r,0.41667)-0.055;
+      if (temp > 0.0031308) r = temp;
+      else r *= 12.92;
+      if (g < 0) g = 0;
+      temp = 1.055*pow(g,0.41667)-0.055;
+      if (temp > 0.0031308) g = temp;
+      else g *= 12.92;
+      if (b < 0) b = 0;
+      temp = 1.055*pow(b,0.41667)-0.055;
+      if (temp > 0.0031308) b = temp;
+      else b *= 12.92;
+      operator()(x,y,0) = 255.0*r;
+      operator()(x,y,1) = 255.0*g;
+      operator()(x,y,2) = 255.0*b;
+    }
 }
 
 // applySimilarityTransform
@@ -528,419 +655,6 @@ void CTensor<T>::applyHomography(CTensor<T>& aWarped, CMatrix<bool>& aOutside, c
         }
       }
     }
-}
-
-// -----------------------------------------------------------------------------
-// FFT (from Takuya OOURA FFT package)
-// -----------------------------------------------------------------------------
-
-void bitrv2(int n, int *ip, double *a) {
-  int j, j1, k, k1, l, m, m2;
-  double xr, xi;
-  ip[0] = 0;
-  l = n;
-  m = 1;
-  while ((m << 2) < l) {
-    l >>= 1;
-    for (j = 0; j <= m - 1; j++)
-      ip[m + j] = ip[j] + l;
-    m <<= 1;
-  }
-  if ((m << 2) > l) {
-    for (k = 1; k <= m - 1; k++)
-      for (j = 0; j <= k - 1; j++) {
-        j1 = (j << 1) + ip[k];
-        k1 = (k << 1) + ip[j];
-        xr = a[j1];
-        xi = a[j1 + 1];
-        a[j1] = a[k1];
-        a[j1 + 1] = a[k1 + 1];
-        a[k1] = xr;
-        a[k1 + 1] = xi;
-      }
-  }
-  else {
-    m2 = m << 1;
-    for (k = 1; k <= m - 1; k++)
-      for (j = 0; j <= k - 1; j++) {
-        j1 = (j << 1) + ip[k];
-        k1 = (k << 1) + ip[j];
-        xr = a[j1];
-        xi = a[j1 + 1];
-        a[j1] = a[k1];
-        a[j1 + 1] = a[k1 + 1];
-        a[k1] = xr;
-        a[k1 + 1] = xi;
-        j1 += m2;
-        k1 += m2;
-        xr = a[j1];
-        xi = a[j1 + 1];
-        a[j1] = a[k1];
-        a[j1 + 1] = a[k1 + 1];
-        a[k1] = xr;
-        a[k1 + 1] = xi;
-      }
-  }
-}
-
-void makewt(int nw, int *ip, double *w) {
-  int nwh, j;
-  double delta, x, y;
-  ip[0] = nw;
-  ip[1] = 1;
-  if (nw > 2) {
-    nwh = nw >> 1;
-    delta = atan(1.0) / nwh;
-    w[0] = 1;
-    w[1] = 0;
-    w[nwh] = cos(delta * nwh);
-    w[nwh + 1] = w[nwh];
-    for (j = 2; j <= nwh - 2; j += 2) {
-      x = cos(delta * j);
-      y = sin(delta * j);
-      w[j] = x;
-      w[j + 1] = y;
-      w[nw - j] = y;
-      w[nw - j + 1] = x;
-    }
-    bitrv2(nw, ip + 2, w);
-  }
-}
-
-void cftbsub(int n, double *a, double *w) {
-  int j, j1, j2, j3, k, k1, ks, l, m;
-  double wk1r, wk1i, wk2r, wk2i, wk3r, wk3i;
-  double x0r, x0i, x1r, x1i, x2r, x2i, x3r, x3i;
-  l = 2;
-  while ((l << 1) < n) {
-    m = l << 2;
-    for (j = 0; j <= l - 2; j += 2) {
-      j1 = j + l;
-      j2 = j1 + l;
-      j3 = j2 + l;
-      x0r = a[j] + a[j1];
-      x0i = a[j + 1] + a[j1 + 1];
-      x1r = a[j] - a[j1];
-      x1i = a[j + 1] - a[j1 + 1];
-      x2r = a[j2] + a[j3];
-      x2i = a[j2 + 1] + a[j3 + 1];
-      x3r = a[j2] - a[j3];
-      x3i = a[j2 + 1] - a[j3 + 1];
-      a[j] = x0r + x2r;
-      a[j + 1] = x0i + x2i;
-      a[j2] = x0r - x2r;
-      a[j2 + 1] = x0i - x2i;
-      a[j1] = x1r - x3i;
-      a[j1 + 1] = x1i + x3r;
-      a[j3] = x1r + x3i;
-      a[j3 + 1] = x1i - x3r;
-    }
-    if (m < n) {
-      wk1r = w[2];
-      for (j = m; j <= l + m - 2; j += 2) {
-        j1 = j + l;
-        j2 = j1 + l;
-        j3 = j2 + l;
-        x0r = a[j] + a[j1];
-        x0i = a[j + 1] + a[j1 + 1];
-        x1r = a[j] - a[j1];
-        x1i = a[j + 1] - a[j1 + 1];
-        x2r = a[j2] + a[j3];
-        x2i = a[j2 + 1] + a[j3 + 1];
-        x3r = a[j2] - a[j3];
-        x3i = a[j2 + 1] - a[j3 + 1];
-        a[j] = x0r + x2r;
-        a[j + 1] = x0i + x2i;
-        a[j2] = x2i - x0i;
-        a[j2 + 1] = x0r - x2r;
-        x0r = x1r - x3i;
-        x0i = x1i + x3r;
-        a[j1] = wk1r * (x0r - x0i);
-        a[j1 + 1] = wk1r * (x0r + x0i);
-        x0r = x3i + x1r;
-        x0i = x3r - x1i;
-        a[j3] = wk1r * (x0i - x0r);
-        a[j3 + 1] = wk1r * (x0i + x0r);
-      }
-      k1 = 1;
-      ks = -1;
-      for (k = (m << 1); k <= n - m; k += m) {
-        k1++;
-        ks = -ks;
-        wk1r = w[k1 << 1];
-        wk1i = w[(k1 << 1) + 1];
-        wk2r = ks * w[k1];
-        wk2i = w[k1 + ks];
-        wk3r = wk1r - 2 * wk2i * wk1i;
-        wk3i = 2 * wk2i * wk1r - wk1i;
-        for (j = k; j <= l + k - 2; j += 2) {
-          j1 = j + l;
-          j2 = j1 + l;
-          j3 = j2 + l;
-          x0r = a[j] + a[j1];
-          x0i = a[j + 1] + a[j1 + 1];
-          x1r = a[j] - a[j1];
-          x1i = a[j + 1] - a[j1 + 1];
-          x2r = a[j2] + a[j3];
-          x2i = a[j2 + 1] + a[j3 + 1];
-          x3r = a[j2] - a[j3];
-          x3i = a[j2 + 1] - a[j3 + 1];
-          a[j] = x0r + x2r;
-          a[j + 1] = x0i + x2i;
-          x0r -= x2r;
-          x0i -= x2i;
-          a[j2] = wk2r * x0r - wk2i * x0i;
-          a[j2 + 1] = wk2r * x0i + wk2i * x0r;
-          x0r = x1r - x3i;
-          x0i = x1i + x3r;
-          a[j1] = wk1r * x0r - wk1i * x0i;
-          a[j1 + 1] = wk1r * x0i + wk1i * x0r;
-          x0r = x1r + x3i;
-          x0i = x1i - x3r;
-          a[j3] = wk3r * x0r - wk3i * x0i;
-          a[j3 + 1] = wk3r * x0i + wk3i * x0r;
-        }
-      }
-    }
-    l = m;
-  }
-  if (l < n) {
-    for (j = 0; j <= l - 2; j += 2) {
-      j1 = j + l;
-      x0r = a[j] - a[j1];
-      x0i = a[j + 1] - a[j1 + 1];
-      a[j] += a[j1];
-      a[j + 1] += a[j1 + 1];
-      a[j1] = x0r;
-      a[j1 + 1] = x0i;
-    }
-  }
-}
-
-void cftfsub(int n, double *a, double *w) {
-  int j, j1, j2, j3, k, k1, ks, l, m;
-  double wk1r, wk1i, wk2r, wk2i, wk3r, wk3i;
-  double x0r, x0i, x1r, x1i, x2r, x2i, x3r, x3i;
-
-  l = 2;
-  while ((l << 1) < n) {
-    m = l << 2;
-    for (j = 0; j <= l - 2; j += 2) {
-      j1 = j + l;
-      j2 = j1 + l;
-      j3 = j2 + l;
-      x0r = a[j] + a[j1];
-      x0i = a[j + 1] + a[j1 + 1];
-      x1r = a[j] - a[j1];
-      x1i = a[j + 1] - a[j1 + 1];
-      x2r = a[j2] + a[j3];
-      x2i = a[j2 + 1] + a[j3 + 1];
-      x3r = a[j2] - a[j3];
-      x3i = a[j2 + 1] - a[j3 + 1];
-      a[j] = x0r + x2r;
-      a[j + 1] = x0i + x2i;
-      a[j2] = x0r - x2r;
-      a[j2 + 1] = x0i - x2i;
-      a[j1] = x1r + x3i;
-      a[j1 + 1] = x1i - x3r;
-      a[j3] = x1r - x3i;
-      a[j3 + 1] = x1i + x3r;
-    }
-    if (m < n) {
-      wk1r = w[2];
-      for (j = m; j <= l + m - 2; j += 2) {
-        j1 = j + l;
-        j2 = j1 + l;
-        j3 = j2 + l;
-        x0r = a[j] + a[j1];
-        x0i = a[j + 1] + a[j1 + 1];
-        x1r = a[j] - a[j1];
-        x1i = a[j + 1] - a[j1 + 1];
-        x2r = a[j2] + a[j3];
-        x2i = a[j2 + 1] + a[j3 + 1];
-        x3r = a[j2] - a[j3];
-        x3i = a[j2 + 1] - a[j3 + 1];
-        a[j] = x0r + x2r;
-        a[j + 1] = x0i + x2i;
-        a[j2] = x0i - x2i;
-        a[j2 + 1] = x2r - x0r;
-        x0r = x1r + x3i;
-        x0i = x1i - x3r;
-        a[j1] = wk1r * (x0i + x0r);
-        a[j1 + 1] = wk1r * (x0i - x0r);
-        x0r = x3i - x1r;
-        x0i = x3r + x1i;
-        a[j3] = wk1r * (x0r + x0i);
-        a[j3 + 1] = wk1r * (x0r - x0i);
-      }
-      k1 = 1;
-      ks = -1;
-      for (k = (m << 1); k <= n - m; k += m) {
-        k1++;
-        ks = -ks;
-        wk1r = w[k1 << 1];
-        wk1i = w[(k1 << 1) + 1];
-        wk2r = ks * w[k1];
-        wk2i = w[k1 + ks];
-        wk3r = wk1r - 2 * wk2i * wk1i;
-        wk3i = 2 * wk2i * wk1r - wk1i;
-        for (j = k; j <= l + k - 2; j += 2) {
-          j1 = j + l;
-          j2 = j1 + l;
-          j3 = j2 + l;
-          x0r = a[j] + a[j1];
-          x0i = a[j + 1] + a[j1 + 1];
-          x1r = a[j] - a[j1];
-          x1i = a[j + 1] - a[j1 + 1];
-          x2r = a[j2] + a[j3];
-          x2i = a[j2 + 1] + a[j3 + 1];
-          x3r = a[j2] - a[j3];
-          x3i = a[j2 + 1] - a[j3 + 1];
-          a[j] = x0r + x2r;
-          a[j + 1] = x0i + x2i;
-          x0r -= x2r;
-          x0i -= x2i;
-          a[j2] = wk2r * x0r + wk2i * x0i;
-          a[j2 + 1] = wk2r * x0i - wk2i * x0r;
-          x0r = x1r + x3i;
-          x0i = x1i - x3r;
-          a[j1] = wk1r * x0r + wk1i * x0i;
-          a[j1 + 1] = wk1r * x0i - wk1i * x0r;
-          x0r = x1r - x3i;
-          x0i = x1i + x3r;
-          a[j3] = wk3r * x0r + wk3i * x0i;
-          a[j3 + 1] = wk3r * x0i - wk3i * x0r;
-        }
-      }
-    }
-    l = m;
-  }
-  if (l < n) {
-    for (j = 0; j <= l - 2; j += 2) {
-      j1 = j + l;
-      x0r = a[j] - a[j1];
-      x0i = a[j + 1] - a[j1 + 1];
-      a[j] += a[j1];
-      a[j + 1] += a[j1 + 1];
-      a[j1] = x0r;
-      a[j1 + 1] = x0i;
-    }
-  }
-}
-
-void cdft(int n, int isgn, double *a, int *ip, double *w) {
-  void cftbsub(int n, double *a, double *w);
-  void cftfsub(int n, double *a, double *w);
-
-  if (n > (ip[0] << 2)) makewt(n >> 2, ip, w);
-  if (n > 4) bitrv2(n, ip + 2, a);
-  if (isgn < 0) cftfsub(n, a, w);
-  else cftbsub(n, a, w);
-}
-
-void cdft2d(int n1, int n2, int isgn, double **a, double *t, int *ip, double *w) {
-  int n, i, j, i2;
-  n = n1 << 1;
-  if (n < n2)  n = n2;
-  if (n > (ip[0] << 2)) makewt(n >> 2, ip, w);
-  for (i = 0; i <= n1 - 1; i++)
-    cdft(n2, isgn, a[i], ip, w);
-  for (j = 0; j <= n2 - 2; j += 2) {
-    for (i = 0; i <= n1 - 1; i++) {
-      i2 = i << 1;
-      t[i2] = a[i][j];
-      t[i2 + 1] = a[i][j + 1];
-    }
-    cdft(n1 << 1, isgn, t, ip, w);
-    for (i = 0; i <= n1 - 1; i++) {
-      i2 = i << 1;
-      a[i][j] = t[i2];
-      a[i][j + 1] = t[i2 + 1];
-    }
-  }
-}
-
-template <class T>
-void CTensor<T>::fft() {
-  int n1 = mXSize;
-  int n2 = mYSize;
-  // Reserve memory
-  double** a = new double*[n1];
-  for (int i = 0; i < n1; i++)
-    a[i] = new double[2*n2];
-  double* t = new double[2*n1];
-  int* ip = new int[2+NMath::max(n1,n2)];
-  ip[0] = 0;
-  double* w = new double[NMath::max(n1/2,n2/2)];
-  // Apply FFT to data
-  for (int y = 0; y < mYSize; y++)
-    for (int x = 0; x < mXSize; x++) {
-      a[x][2*y] = operator()(x,y,0);
-      a[x][2*y+1] = operator()(x,y,1);
-    }
-  cdft2d(n1,2*n2,1,a,t,ip,w);
-  int n12 = n1/2;
-  int n22 = n2/2;
-  for (int y = 0; y < n22; y++)
-    for (int x = 0; x < n12; x++) {
-      operator()(n12-1-x,n22-1-y,0) = a[x][2*y];
-      operator()(n12-1-x,n22-1-y,1) = a[x][2*y+1];
-      operator()(n1-1-x,n22-1-y,0) = a[x+n12][2*y];
-      operator()(n1-1-x,n22-1-y,1) = a[x+n12][2*y+1];
-      operator()(n12-1-x,n2-1-y,0) = a[x][2*(y+n22)];
-      operator()(n12-1-x,n2-1-y,1) = a[x][2*(y+n22)+1];
-      operator()(n1-1-x,n2-1-y,0) = a[x+n12][2*(y+n22)];
-      operator()(n1-1-x,n2-1-y,1) = a[x+n12][2*(y+n22)+1];
-    }
-  // Release memory
-  delete[] w;
-  delete[] ip;
-  delete[] t;
-  for (int i = 0; i < n1; i++)
-    delete[] a[i];
-  delete[] a;
-}
-
-template <class T>
-void CTensor<T>::ifft() {
-  int n1 = mXSize;
-  int n2 = mYSize;
-  // Reserve memory
-  double** a = new double*[n1];
-  for (int i = 0; i < n1; i++)
-    a[i] = new double[2*n2];
-  double* t = new double[2*n1];
-  int* ip = new int[2+NMath::max(n1,n2)];
-  ip[0] = 0;
-  double* w = new double[NMath::max(n1/2,n2/2)];
-  // Apply inverse FFT to data
-  int n12 = n1/2;
-  int n22 = n2/2;
-  for (int y = 0; y < n22; y++)
-    for (int x = 0; x < n12; x++) {
-      a[x][2*y] = operator()(n12-1-x,n22-1-y,0);
-      a[x][2*y+1] = operator()(n12-1-x,n22-1-y,1);
-      a[x+n12][2*y] = operator()(n1-1-x,n22-1-y,0);
-      a[x+n12][2*y+1] = operator()(n1-1-x,n22-1-y,1);
-      a[x][2*(y+n22)] = operator()(n12-1-x,n2-1-y,0);
-      a[x][2*(y+n22)+1] = operator()(n12-1-x,n2-1-y,1);
-      a[x+n12][2*(y+n22)] = operator()(n1-1-x,n2-1-y,0);
-      a[x+n12][2*(y+n22)+1] = operator()(n1-1-x,n2-1-y,1);
-    }
-  cdft2d(n1,2*n2,-1,a,t,ip,w);
-  double invSize = 1.0/(n1*n2);
-  for (int y = 0; y < mYSize; y++)
-    for (int x = 0; x < mXSize; x++) {
-      operator()(x,y,0) = invSize*a[x][2*y];
-      operator()(x,y,1) = invSize*a[x][2*y+1];
-    }
-  // Release memory
-  delete[] w;
-  //delete[] ip;
-  delete[] t;
-  for (int i = 0; i < n1; i++)
-    delete[] a[i];
-  delete[] a;
 }
 
 // -----------------------------------------------------------------------------
@@ -1094,11 +808,14 @@ template <class T>
 void CTensor<T>::readFromPGM(const char* aFilename) {
   FILE *aStream;
   aStream = fopen(aFilename,"rb");
+  if (aStream == 0) std::cerr << "File not found: " << aFilename << std::endl;
   int dummy;
   // Find beginning of file (P5)
   while (getc(aStream) != 'P');
   if (getc(aStream) != '5') throw EInvalidFileFormat("PGM");
-  while (getc(aStream) != '\n');
+  do
+    dummy = getc(aStream);
+  while (dummy != '\n' && dummy != ' ');
   // Remove comments and empty lines
   dummy = getc(aStream);
   while (dummy == '#') {
@@ -1106,7 +823,7 @@ void CTensor<T>::readFromPGM(const char* aFilename) {
     dummy = getc(aStream);
   }
   while (dummy == '\n')
-    dummy = getc(aStream); 
+    dummy = getc(aStream);
   // Read image size
   mXSize = dummy-48;
   while ((dummy = getc(aStream)) >= 48 && dummy < 58)
@@ -1116,8 +833,10 @@ void CTensor<T>::readFromPGM(const char* aFilename) {
   while ((dummy = getc(aStream)) >= 48 && dummy < 58)
     mYSize = 10*mYSize+dummy-48;
   mZSize = 1;
-  if (dummy != '\n') while (getc(aStream) != '\n');
-  while (getc(aStream) != '\n');
+  while (dummy != '\n' && dummy != ' ')
+    dummy = getc(aStream);
+  while (dummy != '\n' && dummy != ' ')
+    dummy = getc(aStream);
   // Adjust size of data structure
   delete[] mData;
   mData = new T[mXSize*mYSize];
@@ -1130,7 +849,7 @@ void CTensor<T>::readFromPGM(const char* aFilename) {
 // writeToPGM
 template <class T>
 void CTensor<T>::writeToPGM(const char* aFilename) {
-  int rows = (int)floor(sqrt(mZSize));
+  int rows = (int)floor(sqrtf(mZSize));
   int cols = (int)ceil(mZSize*1.0/rows);
   FILE* outimage = fopen(aFilename, "wb");
   fprintf(outimage, "P5 \n");
@@ -1166,12 +885,16 @@ template <class T>
 void CTensor<T>::readFromPPM(const char* aFilename) {
   FILE *aStream;
   aStream = fopen(aFilename,"rb");
-  if (aStream == 0) std::cerr << "File not found: " << aFilename << std::endl;
+  if (aStream == 0)
+    std::cerr << "File not found: " << aFilename << std::endl;
   int dummy;
   // Find beginning of file (P6)
   while (getc(aStream) != 'P');
-  if (getc(aStream) != '6') throw EInvalidFileFormat("PPM");
-  while (getc(aStream) != '\n');
+  dummy = getc(aStream);
+  if (dummy == '5') mZSize = 1;
+  else if (dummy == '6') mZSize = 3;
+  else throw EInvalidFileFormat("PPM");
+  do dummy = getc(aStream); while (dummy != '\n' && dummy != ' ');
   // Remove comments and empty lines
   dummy = getc(aStream);
   while (dummy == '#') {
@@ -1179,7 +902,7 @@ void CTensor<T>::readFromPPM(const char* aFilename) {
     dummy = getc(aStream);
   }
   while (dummy == '\n')
-    dummy = getc(aStream); 
+    dummy = getc(aStream);
   // Read image size
   mXSize = dummy-48;
   while ((dummy = getc(aStream)) >= 48 && dummy < 58)
@@ -1188,19 +911,26 @@ void CTensor<T>::readFromPPM(const char* aFilename) {
   mYSize = dummy-48;
   while ((dummy = getc(aStream)) >= 48 && dummy < 58)
     mYSize = 10*mYSize+dummy-48;
-  mZSize = 3;
+  while (dummy != '\n' && dummy != ' ')
+    dummy = getc(aStream);
+  while (dummy < 48 || dummy >= 58) dummy = getc(aStream);
+  while ((dummy = getc(aStream)) >= 48 && dummy < 58);
   if (dummy != '\n') while (getc(aStream) != '\n');
-  while (getc(aStream) != '\n');
   // Adjust size of data structure
   delete[] mData;
-  mData = new T[mXSize*mYSize*3];
+  mData = new T[mXSize*mYSize*mZSize];
   // Read image data
   int aSize = mXSize*mYSize;
-  int aSizeTwice = aSize+aSize;
-  for (int i = 0; i < aSize; i++) {
-    mData[i] = getc(aStream);
-    mData[i+aSize] = getc(aStream);
-    mData[i+aSizeTwice] = getc(aStream);
+  if (mZSize == 1)
+    for (int i = 0; i < aSize; i++)
+      mData[i] = getc(aStream);
+  else {
+    int aSizeTwice = aSize+aSize;
+    for (int i = 0; i < aSize; i++) {
+      mData[i] = getc(aStream);
+      mData[i+aSize] = getc(aStream);
+      mData[i+aSizeTwice] = getc(aStream);
+    }
   }
   fclose(aStream);
 }
@@ -1210,7 +940,7 @@ template <class T>
 void CTensor<T>::writeToPPM(const char* aFilename) {
   FILE* outimage = fopen(aFilename, "wb");
   fprintf(outimage, "P6 \n");
-  fprintf(outimage, "%ld %ld \n255\n", mXSize,mYSize);
+  fprintf(outimage, "%d %d \n255\n", mXSize,mYSize);
   for (int y = 0; y < mYSize; y++)
     for (int x = 0; x < mXSize; x++) {
       unsigned char aHelp = (unsigned char)operator()(x,y,0);
@@ -1304,13 +1034,18 @@ template <class T>
 CTensor<T>& CTensor<T>::operator=(const CTensor<T>& aCopyFrom) {
   if (this != &aCopyFrom) {
     delete[] mData;
-    mXSize = aCopyFrom.mXSize;
-    mYSize = aCopyFrom.mYSize;
-    mZSize = aCopyFrom.mZSize;
-    int wholeSize = mXSize*mYSize*mZSize;
-    mData = new T[wholeSize];
-    for (register int i = 0; i < wholeSize; i++)
-      mData[i] = aCopyFrom.mData[i];
+    if (aCopyFrom.mData == 0) {
+      mData = 0; mXSize = 0; mYSize = 0; mZSize = 0;
+    }
+    else {
+      mXSize = aCopyFrom.mXSize;
+      mYSize = aCopyFrom.mYSize;
+      mZSize = aCopyFrom.mZSize;
+      int wholeSize = mXSize*mYSize*mZSize;
+      mData = new T[wholeSize];
+      for (register int i = 0; i < wholeSize; i++)
+        mData[i] = aCopyFrom.mData[i];
+    }
   }
   return *this;
 }
