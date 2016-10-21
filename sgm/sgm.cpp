@@ -123,12 +123,9 @@ std::vector<std::vector<float>> sgm::calcMsgsForwardX ( std::vector<std::vector<
             for(int lbl1=0; lbl1<=label_; lbl1++){           
                   temp.clear();    
 
-                     
-                int pc=PottsPairwiseCost(0,lbl1);
-                float fff=unaryCost[x-1][0]+result[x-1][0]+lambda_*pc;
-                temp.push_back(fff);
+ 
 
-                  for(int lbl2=1; lbl2<=label_;lbl2++){ 
+                  for(int lbl2=0; lbl2<=label_;lbl2++){ 
                         int pCost=PottsPairwiseCost(lbl1,lbl2);
                         float res=unaryCost[x-1][lbl2]+lambda_*pCost + result[x-1][lbl2];        
                         temp.push_back(res);   
@@ -171,11 +168,9 @@ std::vector<std::vector<float>> sgm::calcMsgsBackwardX (std::vector<std::vector<
                   temp.clear();    
 
                      
-                int pc=PottsPairwiseCost(0,lbl1);
-                float fff=unaryCost[x_size_-x][0]+result[x-1][0]+lambda_*pc;
-                temp.push_back(fff);
+           
 
-                  for(int lbl2=1; lbl2<=label_;lbl2++){ 
+                  for(int lbl2=0; lbl2<=label_;lbl2++){ 
                         int pCost=PottsPairwiseCost(lbl1,lbl2);
                         float res=unaryCost[x_size_-x][lbl2]+lambda_*pCost + result[x-1][lbl2];        
                         temp.push_back(res);   
@@ -221,7 +216,7 @@ CMatrix<float> result(x_size_,y_size_);
   
                 float min_index = std::min_element(temp.begin(), temp.end())- temp.begin();
 
-               std::cout<<"disparity "<<min_index<<"\n";
+             //  std::cout<<"disparity "<<min_index<<"\n";
                       
                 result(x,y)=min_index;
                 
@@ -244,7 +239,7 @@ int main(){
 
     sgm depth(imageL,imageR);
     depth.setPathRadius(0);//path radius for similarity check(for unary cost)
-    depth.setLabel(15);//Labels max depth
+    depth.setLabel(15);//Labels max disparity
     depth.setLambda(100);//pairwise cost penalizer
 
 
