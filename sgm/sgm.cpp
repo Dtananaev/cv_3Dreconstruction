@@ -6,343 +6,256 @@
  * Date: 20.10.2016
  */
 
-#include <cstdlib>   /// contains: EXIT_SUCCESS
-#include <iostream>  /// contains: std::cout etc.
-#include "CMatrix.h"
-#include "CVector.h"
-#include <vector>
-#include <string>
-#include <fstream>
-#include <NMath.h> //SVD
-#include "CTensor.h"
-#include <cmath>
-#include <algorithm> 
+#include "sgm.h"
 
-///For colored images
-void image2rgb(CTensor<float> image_color, CMatrix<float>& red, CMatrix<float>& green, CMatrix<float>& blue){
-	for(long int x=0;x<image_color.xSize();x++)
-		for(long int y=0;y<image_color.ySize();y++)
-		{
-			red(x,y)=image_color(x,y,0);
-			green(x,y)=image_color(x,y,1);
-			blue(x,y)=image_color(x,y,2);
-		}
+sgm::sgm(CTensor<float> image_left, CTensor<float> image_right){
+
+    patch_radius_=3;
+    label_=15;
+    lambda_=1;
+
+    x_size_=image_left.xSize();
+    y_size_=image_left.ySize();
+
+    redL_=image_left.getMatrix(0);
+    greenL_=image_left.getMatrix(1);   
+    blueL_=image_left.getMatrix(2);   
+
+    redR_=image_right.getMatrix(0);
+    greenR_=image_right.getMatrix(1);   
+    blueR_=image_right.getMatrix(2);   
 
 }
 
-void rgb2image(CTensor<float>& result_color, CMatrix<float> red, CMatrix<float> green, CMatrix<float> blue){
-	for(long int x=0;x<result_color.xSize();x++)
-		for(long int y=0;y<result_color.ySize();y++)
-		{
-			result_color(x,y,0)=red(x,y);
-			result_color(x,y,1)=green(x,y);
-			result_color(x,y,2)=blue(x,y);
-		}
-}
-
-float patch_distance(  CMatrix<float> img1, CMatrix<float> img2,  
-	int x1, int y1, 
-	int x2, int y2, 
-	int patch_radius )
-{
-	const int x_size = img1.xSize();
-	const int y_size = img1.ySize();
-
-	float ssd = 0;
-	for( int ty = -patch_radius; ty <= patch_radius; ++ty )
-		for( int tx = -patch_radius; tx <= patch_radius; ++tx )
-		{
-			// clamp coordinates
-			int p1x = std::min(x_size-1,std::max(0,x1+tx));//start and end of patch
-			int p1y = std::min(y_size-1,std::max(0,y1+ty));
-			int p2x = std::min(x_size-1,std::max(0,x2+tx));
-			int p2y = std::min(y_size-1,std::max(0,y2+ty));
-			float tmp = img1(p1x,p1y)-img2(p2x,p2y);		
-			ssd += tmp*tmp;
-
-		}
-
-
-		return ssd;
+sgm::~sgm(){
 }
 
 
-CMatrix<float> EuclidDistDepth(CMatrix<float> redL, CMatrix<float> greenL,CMatrix<float> blueL,CMatrix<float> redR, CMatrix<float> greenR, CMatrix<float> blueR, int patch_radius){
+void sgm::setPathRadius(int radius){
+    patch_radius_=radius;
+}
+void sgm::setLabel(int labels){
+    label_=labels;
+}
 
-    CMatrix<float> result(redL.xSize(), redL.ySize());
-    std::vector<double> distance;
-      const int x_size = redL.xSize();
-	  const int y_size = redL.ySize();
+void sgm::setLambda(int lambda){
+    lambda_=lambda;
+}
 
 
-  for(int y =0;y<redL.ySize();y++){
-    for(int x =0; x<redL.xSize();x++){
-
-         distance.clear();
-  
-  //find euclid distance between pixels
-        for(int j=0; j<redL.xSize();j++){
-
-   
-	     float R=0;
-         float G=0;
-         float B=0;
-	      for( int ty = -patch_radius; ty <= patch_radius; ++ty )
-		  for( int tx = -patch_radius; tx <= patch_radius; ++tx )
+float sgm::EuclidUnaryCost(int x, int y, int label){
+    float dist=0;
+    float R=0;
+    float G=0;
+    float B=0;
+    for( int ty = -patch_radius_; ty <= patch_radius_; ++ty )
+		  for( int tx = -patch_radius_; tx <= patch_radius_; ++tx )
 		   {
 			// clamp coordinates
-			int p1x = std::min(x_size-1,std::max(0,x+tx));//start and end of patch
-			int p1y = std::min(y_size-1,std::max(0,y+ty));
-			int p2x = std::min(x_size-1,std::max(0,j+tx));
-			int p2y = std::min(y_size-1,std::max(0,y+ty));
-			float Rtmp = redL(p1x,p1y)-redR(p2x,p2y);		
+			int p1x = std::min(x_size_-1,std::max(0,x+tx));//start and end of patch
+			int p1y = std::min(y_size_-1,std::max(0,y+ty));
+			int p2x = std::min(x_size_-1,std::max(0,x-label+tx));
+			int p2y = std::min(y_size_-1,std::max(0,y+ty));
+			float Rtmp = redL_(p1x,p1y)-redR_(p2x,p2y);		
 			R += Rtmp*Rtmp;
 
-            float Gtmp = greenL(p1x,p1y)-greenR(p2x,p2y);		
+            float Gtmp = greenL_(p1x,p1y)-greenR_(p2x,p2y);		
 			G += Gtmp*Gtmp;
 
-            float Btmp=blueL(p1x,p1y)-blueR(p2x,p2y);	
+            float Btmp=blueL_(p1x,p1y)-blueR_(p2x,p2y);	
             B+=Btmp*Btmp;
 		  }
 
-         double dist=sqrt( R +G+B  );
-        distance.push_back(dist);
-    
-        }
-
-        int min_index = std::min_element(distance.begin(), distance.end()) - distance.begin();
-        result(x,y)=x-min_index;
-
-        //outlier detection 
-        if(result(x,y)>20){
-            result(x,y)=0;
-        
-        }else if(result(x,y)<0){
-            result(x,y)=0;
-        
-        }
-
-      std::cout<<" Min distance= "<<result(x,y)<<"\n";
-    
-        
-    }
-  }
-    return result;
+         return dist=sqrt(R+G+B);
 }
 
-
-CMatrix<float> AbsoluteDistDepth(CMatrix<float> redL, CMatrix<float> greenL,CMatrix<float> blueL,CMatrix<float> redR, CMatrix<float> greenR, CMatrix<float> blueR, int patch_radius){
-
-    CMatrix<float> result(redL.xSize(), redL.ySize());
-    std::vector<double> distance;
-      const int x_size = redL.xSize();
-	  const int y_size = redL.ySize();
-
-
-  for(int y =0;y<redL.ySize();y++){
-    for(int x =0; x<redL.xSize();x++){
-
-         distance.clear();
-  
-  //find euclid distance between pixels
-        for(int j=0; j<redL.xSize();j++){
-
-   
-	     float R=0;
-         float G=0;
-         float B=0;
-	      for( int ty = -patch_radius; ty <= patch_radius; ++ty )
-		  for( int tx = -patch_radius; tx <= patch_radius; ++tx )
-		   {
-			// clamp coordinates
-			int p1x = std::min(x_size-1,std::max(0,x+tx));//start and end of patch
-			int p1y = std::min(y_size-1,std::max(0,y+ty));
-			int p2x = std::min(x_size-1,std::max(0,j+tx));
-			int p2y = std::min(y_size-1,std::max(0,y+ty));
-			float Rtmp = redL(p1x,p1y)-redR(p2x,p2y);		
-			R += abs(Rtmp);
-
-            float Gtmp = greenL(p1x,p1y)-greenR(p2x,p2y);		
-			G += abs(Gtmp);
-
-            float Btmp=blueL(p1x,p1y)-blueR(p2x,p2y);	
-            B+=abs(Btmp);
-
-		  }
-     //    float R=patch_distance( redL,redR,x,y, j, y, patch_radius );
-    //     float G=patch_distance( greenL,greenR, x,y, j, y, patch_radius );
-     //    float B=patch_distance( blueL,blueR, x,y, j, y, patch_radius );
-
-      //      double R= redL(x,y)-redR(j,y);
-       //     double G= greenL(x,y)-greenR(j,y);   
-       //    double B= blueL(x,y)-blueR(j,y);  
-
-           //  double dist=sqrt( R *R+G*G +B*B  );
-
-         double dist= R +G+B;
-
-        distance.push_back(dist);
-
-    
-        }
-
-        int min_index = std::min_element(distance.begin(), distance.end()) - distance.begin();
-        result(x,y)=x-min_index;
-
-        //outlier detection 
-       if(result(x,y)>20){
-            result(x,y)=0;
-        
-        }else if(result(x,y)<0){
-            result(x,y)=0;
-       
-        }
-      std::cout<<" Abs distance= "<<result(x,y)<<"\n";
-    
-        
+int sgm::PottsPairwiseCost(int label1,int label2){
+    int i=1;
+    if(label1==label2){
+        i=0;
     }
-  }
-    return result;
+    return i;
 }
 
-CMatrix<float> CrossEntrophyDepth(CMatrix<float> redL, CMatrix<float> greenL,CMatrix<float> blueL,CMatrix<float> redR, CMatrix<float> greenR, CMatrix<float> blueR, int patch_radius){
+std::vector<std::vector<float>> sgm::calcUnaryCostX(int y){
 
-    CMatrix<float> result(redL.xSize(), redL.ySize());
-    std::vector<double> distance;
-      const int x_size = redL.xSize();
-	  const int y_size = redL.ySize();
+std::vector<std::vector<float>> result;
+    std::vector<float> temp;
 
+    for(int x=0; x<x_size_;x++){
+             temp.clear();
+             for(int lbl1=0; lbl1<=label_;lbl1++){ //message passing only by x direction
+                float uCost=0; 
+               if (x - lbl1 < 0) { uCost= 1.0e9f;}
+                else{
 
-  for(int y =0;y<redL.ySize();y++){
-    for(int x =0; x<redL.xSize();x++){
-
-         distance.clear();
-  
-  //find cross entrophy distance between pixels
-        for(int j=0; j<redL.xSize();j++){
-
-         CMatrix<float> RedL(2*patch_radius+1,2*patch_radius+1,0);
-         CMatrix<float> GreenL(2*patch_radius+1,2*patch_radius+1,0);
-         CMatrix<float> BlueL(2*patch_radius+1,2*patch_radius+1,0);
-	     float mRL=0;
-         float mGL=0;
-         float mBL=0;
-         CMatrix<float> RedR(2*patch_radius+1,2*patch_radius+1,0);
-         CMatrix<float> GreenR(2*patch_radius+1,2*patch_radius+1,0);
-         CMatrix<float> BlueR(2*patch_radius+1,2*patch_radius+1,0);
-	     float mRR=0;
-         float mGR=0;
-         float mBR=0;
-	      for( int ty = -patch_radius; ty <= patch_radius; ++ty )
-		  for( int tx = -patch_radius; tx <= patch_radius; ++tx )
-		   {
-			// clamp coordinates
-			int p1x = std::min(x_size-1,std::max(0,x+tx));//start and end of patch
-			int p1y = std::min(y_size-1,std::max(0,y+ty));
-			int p2x = std::min(x_size-1,std::max(0,j+tx));
-			int p2y = std::min(y_size-1,std::max(0,y+ty));
-            RedL(tx+patch_radius,ty+patch_radius)=redL(p1x,p1y);
-            RedR(tx+patch_radius,ty+patch_radius)=redR(p2x,p2y);
-            mRL+=redL(p1x,p1y);
-            mRR+=redR(p2x,p2y); 
-
- 
-            GreenL(tx+patch_radius,ty+patch_radius)=greenL(p1x,p1y);
-            GreenR(tx+patch_radius,ty+patch_radius)=greenR(p2x,p2y);
-            mGL+=greenL(p1x,p1y);
-            mGR+=greenR(p2x,p2y);    
-
-            BlueL(tx+patch_radius,ty+patch_radius)=blueL(p1x,p1y);
-            BlueR(tx+patch_radius,ty+patch_radius)=blueR(p2x,p2y);
-            mBL+=blueL(p1x,p1y);
-            mBR+=blueR(p2x,p2y);      
-
-		  }
-
-        mRL=mRL/(2*patch_radius+1);
-        mRR=mRR/(2*patch_radius+1);
-
-        mGL=mGL/(2*patch_radius+1);
-        mGR=mGR/(2*patch_radius+1);
-        mBL=mBL/(2*patch_radius+1);
-        mBR=mBR/(2*patch_radius+1);
-        double A=0;
-        double B=0;
-        double C=0;       
-         for( int a =0; a < 2*patch_radius+1; ++a )
-		  for( int b = 0; b <2* patch_radius+1; ++b )
-		   {       
-                double first=  ( RedL(a,b)-mRL  +  GreenL(a,b)-mGL + BlueL(a,b)-mBL );
-                double second=    ( RedR(a,b)-mRR  +  GreenR(a,b)-mGR + BlueR(a,b)-mBR );       
-
-                A+=  first *second;
-                B+= first*first;
-                C+=second*second;
-
+                 uCost=EuclidUnaryCost(x,y,lbl1);
+                }
+            
+                temp.push_back(uCost);
+            
             }
-         double dist= A/ sqrt(B*C);
-       // std::cout<<"Entrophy "<<dist<<"\n";
-        distance.push_back(dist);
+  
+        result.push_back(temp);
+      }
 
-    
-        }
-
-        int max_index = std::max_element(distance.begin(), distance.end()) - distance.begin();
-        result(x,y)=x-max_index;
-
-        //outlier detection 
-       if(result(x,y)>20){
-            result(x,y)=0;
-        
-        }else if(result(x,y)<0){
-            result(x,y)=0;
-       
-        }
-
-        std::cout<<"Entrophy "<<distance[max_index]<<"\n";
-      std::cout<<" Abs distance= "<<result(x,y)<<"\n";
-    
-        
-    }
-  }
     return result;
 }
+
+
+std::vector<std::vector<float>> sgm::calcMsgsForwardX ( std::vector<std::vector<float>> unaryCost){
+    //init first vector equal zero (no previous messages for the first pixel)
+
+    std::vector<float> init(label_+1, 0.0);//size 16 for x=0
+    std::vector<std::vector<float>> result;
+
+
+    result.push_back(init);
+
+    std::vector<float> temp; // calculate pairwise cost for each unary cost 
+    std::vector<float> msgstemp;
+
+    for(int x=1; x<x_size_;x++){
+
+       
+        msgstemp.clear(); 
+
+            for(int lbl1=0; lbl1<=label_; lbl1++){           
+                  temp.clear();    
+
+                     
+                int pc=PottsPairwiseCost(0,lbl1);
+                float fff=unaryCost[x-1][0]+result[x-1][0]+lambda_*pc;
+                temp.push_back(fff);
+
+                  for(int lbl2=1; lbl2<=label_;lbl2++){ 
+                        int pCost=PottsPairwiseCost(lbl1,lbl2);
+                        float res=unaryCost[x-1][lbl2]+lambda_*pCost + result[x-1][lbl2];        
+                        temp.push_back(res);   
+
+                        
+                 }      
+
+               float min_index = std::min_element(temp.begin(), temp.end())- temp.begin();                 
+                msgstemp.push_back(temp[min_index]);
+
+        }
+     
+        result.push_back(msgstemp);
+    }
+
+    return result;
+}
+
+
+//msgs backward starts from x 
+//so for example for point x it backward msgs will be at [x_size_-x-1]
+std::vector<std::vector<float>> sgm::calcMsgsBackwardX (std::vector<std::vector<float>> unaryCost){
+   //init first vector equal zero (no previous messages for the first pixel)
+
+    std::vector<float> init(label_+1, 0.0);//size 16 for x=0
+    std::vector<std::vector<float>> result;
+
+
+    result.push_back(init);
+
+    std::vector<float> temp; // calculate pairwise cost for each unary cost 
+    std::vector<float> msgstemp;
+
+    for(int x=1; x<x_size_;x++){
+
+       
+        msgstemp.clear(); 
+
+            for(int lbl1=0; lbl1<=label_; lbl1++){           
+                  temp.clear();    
+
+                     
+                int pc=PottsPairwiseCost(0,lbl1);
+                float fff=unaryCost[x_size_-x][0]+result[x-1][0]+lambda_*pc;
+                temp.push_back(fff);
+
+                  for(int lbl2=1; lbl2<=label_;lbl2++){ 
+                        int pCost=PottsPairwiseCost(lbl1,lbl2);
+                        float res=unaryCost[x_size_-x][lbl2]+lambda_*pCost + result[x-1][lbl2];        
+                        temp.push_back(res);   
+
+                        
+                 }      
+
+               float min_index = std::min_element(temp.begin(), temp.end())- temp.begin();                 
+                msgstemp.push_back(temp[min_index]);
+
+        }
+     
+        result.push_back(msgstemp);
+    }
+
+    return result;
+}
+
+
+
+
+CMatrix<float> sgm::messagePassingDepthX(){
+    
+CMatrix<float> result(x_size_,y_size_);
+
+ for(int y=0; y<y_size_;y++){
+        std::vector<std::vector<float>> unary= calcUnaryCostX( y) ;
+        std::vector<std::vector<float>> msgsForward=calcMsgsForwardX ( unary);
+       std::vector<std::vector<float>> msgsBackward=calcMsgsBackwardX( unary);
+        
+    std::vector<float> temp;
+        //calculate final decision
+        for(int x=0;x<x_size_;x++){
+             temp.clear();
+                for(int lbl=0;lbl<=label_;lbl++){
+                    
+                        float res= unary[x][lbl]+ msgsForward[x][lbl]+msgsBackward[x_size_-x-1][lbl];               
+          
+
+                      temp.push_back(res);        
+             
+                }
+  
+                float min_index = std::min_element(temp.begin(), temp.end())- temp.begin();
+
+               std::cout<<"disparity "<<min_index<<"\n";
+                      
+                result(x,y)=min_index;
+                
+        }
+     //std::cin.get();  
+
+    }
+    return result;
+}
+
+
 
 
 int main(){
   
     CTensor<float> imageL;
-
-	imageL.readFromPPM("tsukubaL.ppm");
-
-
-	CMatrix<float> redL(imageL.xSize(),imageL.ySize());
-	CMatrix<float> greenL(imageL.xSize(),imageL.ySize());
-	CMatrix<float> blueL(imageL.xSize(),imageL.ySize());
-	image2rgb(imageL,redL, greenL, blueL);
-
-
-
     CTensor<float> imageR;
-
+	imageL.readFromPPM("tsukubaL.ppm");
 	imageR.readFromPPM("tsukubaR.ppm");
 
+    sgm depth(imageL,imageR);
+    depth.setPathRadius(0);//path radius for similarity check(for unary cost)
+    depth.setLabel(15);//Labels max depth
+    depth.setLambda(100);//pairwise cost penalizer
 
-	CMatrix<float> redR(imageR.xSize(),imageR.ySize());
-	CMatrix<float> greenR(imageR.xSize(),imageR.ySize());
-	CMatrix<float> blueR(imageR.xSize(),imageR.ySize());
-	image2rgb(imageR,redR, greenR, blueR);
 
-    int patch_radius=10;
-   // CMatrix<float> result=pixelwiseEuclidDist( redL,  greenL, blueL, redR,  greenR, blueR,patch_radius);
-  //  CMatrix<float> absresult=AbsoluteDistDepth(redL,  greenL, blueL, redR,  greenR, blueR,patch_radius);
-      CMatrix<float> entrophyresult=CrossEntrophyDepth(redL,  greenL, blueL, redR,  greenR, blueR,patch_radius);
-   // result.normalize(0,255);
-    //result.writeToPGM("result.pgm");
-   // absresult.normalize(0,255);
-   // absresult.writeToPGM("absresult.pgm");
-    entrophyresult.normalize(0,255);
-   entrophyresult.writeToPGM("entrophyresult.pgm");
+    CMatrix<float> result=depth.messagePassingDepthX();
+
+    result.normalize(0,255);
+    result.writeToPGM("result.pgm");
+    
+
+
+   
 }
 
 
