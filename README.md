@@ -8,10 +8,11 @@ The tools for 3D reconstruction.
 
 * Disparity estimation naive - the naive implementation of the disparity estmation by using three different distances: Euclidian distance, absolute distance and cross entrophy
 <p align="center">
-  <img src="https://github.com/Dtananaev/cv_3Dreconstruction/blob/master/Disparity_naive/pictures/Euclidiandist.jpg" width="150"/>
-  <img src="https://github.com/Dtananaev/cv_3Dreconstruction/blob/master/Disparity_naive/pictures/absolutedist.jpg" width="150"/>
-   <img src="https://github.com/Dtananaev/cv_3Dreconstruction/blob/master/Disparity_naive/pictures/entrophyresult.jpg" width="150"/>
-   <img src="https://github.com/Dtananaev/cv_3Dreconstruction/blob/master/Disparity_naive/pictures/dispGT.JPG" width="150"/>   
+  <b>  Euclidian distance   |   absolute distance   |    cross entrophy   |    ground truth </b><br>
+  <img src="https://github.com/Dtananaev/cv_3Dreconstruction/blob/master/Disparity_naive/pictures/Euclidiandist.jpg" width="130"/>
+  <img src="https://github.com/Dtananaev/cv_3Dreconstruction/blob/master/Disparity_naive/pictures/absolutedist.jpg" width="130"/>
+   <img src="https://github.com/Dtananaev/cv_3Dreconstruction/blob/master/Disparity_naive/pictures/entrophyresult.jpg" width="130"/>
+   <img src="https://github.com/Dtananaev/cv_3Dreconstruction/blob/master/Disparity_naive/pictures/dispGT.JPG" width="130"/>   
 </p>
      * To install use in terminal: 
          * cd k_means
