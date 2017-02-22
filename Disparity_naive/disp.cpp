@@ -1,5 +1,5 @@
 /*
- * File: depth.cpp
+ * File: disp.cpp
  *
  * Author: Denis Tananaev
  *
@@ -67,7 +67,7 @@ float patch_distance(  CMatrix<float> img1, CMatrix<float> img2,
 }
 
 
-CMatrix<float> EuclidDistDepth(CMatrix<float> redL, CMatrix<float> greenL,CMatrix<float> blueL,CMatrix<float> redR, CMatrix<float> greenR, CMatrix<float> blueR, int patch_radius){
+CMatrix<float> EuclidDist(CMatrix<float> redL, CMatrix<float> greenL,CMatrix<float> blueL,CMatrix<float> redR, CMatrix<float> greenR, CMatrix<float> blueR, int patch_radius){
 
     CMatrix<float> result(redL.xSize(), redL.ySize());
     std::vector<double> distance;
@@ -122,7 +122,7 @@ CMatrix<float> EuclidDistDepth(CMatrix<float> redL, CMatrix<float> greenL,CMatri
         
         }
 
-      std::cout<<" Min distance= "<<result(x,y)<<"\n";
+
     
         
     }
@@ -131,7 +131,7 @@ CMatrix<float> EuclidDistDepth(CMatrix<float> redL, CMatrix<float> greenL,CMatri
 }
 
 
-CMatrix<float> AbsoluteDistDepth(CMatrix<float> redL, CMatrix<float> greenL,CMatrix<float> blueL,CMatrix<float> redR, CMatrix<float> greenR, CMatrix<float> blueR, int patch_radius){
+CMatrix<float> AbsoluteDist(CMatrix<float> redL, CMatrix<float> greenL,CMatrix<float> blueL,CMatrix<float> redR, CMatrix<float> greenR, CMatrix<float> blueR, int patch_radius){
 
     CMatrix<float> result(redL.xSize(), redL.ySize());
     std::vector<double> distance;
@@ -169,15 +169,6 @@ CMatrix<float> AbsoluteDistDepth(CMatrix<float> redL, CMatrix<float> greenL,CMat
             B+=abs(Btmp);
 
 		  }
-     //    float R=patch_distance( redL,redR,x,y, j, y, patch_radius );
-    //     float G=patch_distance( greenL,greenR, x,y, j, y, patch_radius );
-     //    float B=patch_distance( blueL,blueR, x,y, j, y, patch_radius );
-
-      //      double R= redL(x,y)-redR(j,y);
-       //     double G= greenL(x,y)-greenR(j,y);   
-       //    double B= blueL(x,y)-blueR(j,y);  
-
-           //  double dist=sqrt( R *R+G*G +B*B  );
 
          double dist= R +G+B;
 
@@ -197,15 +188,13 @@ CMatrix<float> AbsoluteDistDepth(CMatrix<float> redL, CMatrix<float> greenL,CMat
             result(x,y)=0;
        
         }
-      std::cout<<" Abs distance= "<<result(x,y)<<"\n";
-    
-        
+           
     }
   }
     return result;
 }
 
-CMatrix<float> CrossEntrophyDepth(CMatrix<float> redL, CMatrix<float> greenL,CMatrix<float> blueL,CMatrix<float> redR, CMatrix<float> greenR, CMatrix<float> blueR, int patch_radius){
+CMatrix<float> CrossEntrophy(CMatrix<float> redL, CMatrix<float> greenL,CMatrix<float> blueL,CMatrix<float> redR, CMatrix<float> greenR, CMatrix<float> blueR, int patch_radius){
 
     CMatrix<float> result(redL.xSize(), redL.ySize());
     std::vector<double> distance;
@@ -281,7 +270,6 @@ CMatrix<float> CrossEntrophyDepth(CMatrix<float> redL, CMatrix<float> greenL,CMa
 
             }
          double dist= A/ sqrt(B*C);
-       // std::cout<<"Entrophy "<<dist<<"\n";
         distance.push_back(dist);
 
     
@@ -299,8 +287,6 @@ CMatrix<float> CrossEntrophyDepth(CMatrix<float> redL, CMatrix<float> greenL,CMa
        
         }
 
-        std::cout<<"Entrophy "<<distance[max_index]<<"\n";
-      std::cout<<" Abs distance= "<<result(x,y)<<"\n";
     
         
     }
@@ -309,11 +295,28 @@ CMatrix<float> CrossEntrophyDepth(CMatrix<float> redL, CMatrix<float> greenL,CMa
 }
 
 
-int main(){
-  
+int main(int argc, char** argv){
+    std::string fileNameInput1;
+    std::string filenameInput2;
+    int patch_radius=3;
+    int n=-1;
+
+	if (argc==3){
+		fileNameInput1=argv[1];
+		filenameInput2=argv[2];	
+    }if(argc==4){
+		fileNameInput1=argv[1];
+		filenameInput2=argv[2];	
+        patch_radius=atoi(argv[3]);        
+	}else{
+		std::cout<<"!!!WRONG INPUT!!!"<<"\n";
+		std::cout<<"Usage: filename1 filename2 patch_radius" <<"\n";
+		std::cout<<"The command should contain at least input file1 and file2 name. The default patch_radius=3. The filenames should be specified without .ppm "<<"\n";
+		return 0;    
+	}
     CTensor<float> imageL;
 
-	imageL.readFromPPM("tsukubaL.ppm");
+	imageL.readFromPPM((fileNameInput1+".ppm").c_str());
 
 
 	CMatrix<float> redL(imageL.xSize(),imageL.ySize());
@@ -325,24 +328,30 @@ int main(){
 
     CTensor<float> imageR;
 
-	imageR.readFromPPM("tsukubaR.ppm");
+	imageR.readFromPPM((filenameInput2+".ppm").c_str());
 
 
 	CMatrix<float> redR(imageR.xSize(),imageR.ySize());
 	CMatrix<float> greenR(imageR.xSize(),imageR.ySize());
 	CMatrix<float> blueR(imageR.xSize(),imageR.ySize());
 	image2rgb(imageR,redR, greenR, blueR);
+     CMatrix<float> result;
+    std::cout<<"choose the distance: [1]- Euclidian distance [2] - absolute distance [3] - cross entrophy "<<"\n";
+    std::cin>>n;
+    if(n==1){
+        result=EuclidDist( redL,  greenL, blueL, redR,  greenR, blueR,patch_radius);
+    }else if(n==2){
+        result=AbsoluteDist(redL,  greenL, blueL, redR,  greenR, blueR,patch_radius);
+    }else if(n==3){
+        result=CrossEntrophy(redL,  greenL, blueL, redR,  greenR, blueR,patch_radius);
+    }else{
+        std::cout<<"wrong input"<<"\n";
+        return 0;
+        
+    }
 
-    int patch_radius=10;
-   // CMatrix<float> result=pixelwiseEuclidDist( redL,  greenL, blueL, redR,  greenR, blueR,patch_radius);
-  //  CMatrix<float> absresult=AbsoluteDistDepth(redL,  greenL, blueL, redR,  greenR, blueR,patch_radius);
-      CMatrix<float> entrophyresult=CrossEntrophyDepth(redL,  greenL, blueL, redR,  greenR, blueR,patch_radius);
-   // result.normalize(0,255);
-    //result.writeToPGM("result.pgm");
-   // absresult.normalize(0,255);
-   // absresult.writeToPGM("absresult.pgm");
-    entrophyresult.normalize(0,255);
-   entrophyresult.writeToPGM("entrophyresult.pgm");
+    result.normalize(0,255);
+    result.writeToPGM("disparity.pgm");
 }
 
 

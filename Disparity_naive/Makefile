@@ -20,7 +20,7 @@ CXXFLAGS += -W -Wall -Wextra -Wpedantic -std=c++11 -pthread -fopenmp
 LDFLAGS = -pthread -lX11 -fopenmp
 
 ## Default name for the built executable
-TARGET = depth
+TARGET = disp
 
 ## Every *.c/*.cc/*.cpp file is a source file
 SOURCES = $(wildcard *.c *.cc *.cpp)
