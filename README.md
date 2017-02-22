@@ -32,6 +32,7 @@ The tools for 3D reconstruction.
          * cd camera_calibration
          * make
      * To run: ./calib
+     
 * Epipolar geometry estimation example 
 <p align="center">
   <img src="https://github.com/Dtananaev/cv_3Dreconstruction/blob/master/epipolar_geometry/pictures/Left_epipol.jpg" width="350"/>
@@ -43,7 +44,7 @@ The tools for 3D reconstruction.
          * make
      * To run: ./epipol
      
- * Message passing algorithm for disparity estimation. 
+* Message passing algorithm for disparity estimation. 
 <p align="center">
   <img src="https://github.com/Dtananaev/cv_3Dreconstruction/blob/master/message_passing/pictures/result.jpg" width="350"/>
   <img src="https://github.com/Dtananaev/cv_3Dreconstruction/blob/master/Disparity_naive/pictures/dispGT.JPG" width="350"/>
