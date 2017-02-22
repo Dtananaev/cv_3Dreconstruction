@@ -1,12 +1,12 @@
 /*
- * File: sgm.cpp
+ * File: message_passing.cpp
  *
  * Author: Denis Tananaev
  *
  * Date: 20.10.2016
  */
 
-#include "sgm.h"
+#include "message_passing.h"
 
 sgm::sgm(CTensor<float> image_left, CTensor<float> image_right){
 

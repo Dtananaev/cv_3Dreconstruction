@@ -1,13 +1,13 @@
 /*
- * File: sgm.h
+ * File: message_passing.h
  *
  * Author: Denis Tananaev
  *
  * Date: 20.10.2016
  */
 
-#ifndef SGM_H_
-#define SGM_H_
+#ifndef MESSAGE_PASSING_H_
+#define MESSAGE_PASSING_H_
 
 #include <cstdlib>   /// contains: EXIT_SUCCESS
 #include <iostream>  /// contains: std::cout etc.
@@ -54,4 +54,4 @@ private:
 
 
 
-#endif /* SGM_H_ */
+#endif /*MESSAGE_PASSING_H_ */
