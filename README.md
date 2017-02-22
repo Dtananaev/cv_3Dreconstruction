@@ -20,3 +20,15 @@ The tools for 3D reconstruction.
      * To run: ./disp name_of_fileLeft(without .ppm) name_of_fileRight(without .ppm) patch_size
      
      
+* Camera calibration example by given 5 different images of checkerboard pattern
+<p align="center">
+  <img src="https://github.com/Dtananaev/cv_3Dreconstruction/blob/master/camera_calibration/pictures/CalibIm1.jpg" width="120"/>
+  <img src="https://github.com/Dtananaev/cv_3Dreconstruction/blob/master/camera_calibration/pictures/CalibIm2.jpg" width="120"/>
+   <img src="https://github.com/Dtananaev/cv_3Dreconstruction/blob/master/camera_calibration/pictures/CalibIm3.jpg" width="120"/>
+   <img src="https://github.com/Dtananaev/cv_3Dreconstruction/blob/master/camera_calibration/pictures/CalibIm4.jpg" width="120"/>   
+   <img src="https://github.com/Dtananaev/cv_3Dreconstruction/blob/master/camera_calibration/pictures/CalibIm5.jpg" width="120"/> 
+</p>
+     * To install use in terminal: 
+         * cd camera_calibration
+         * make
+     * To run: ./calib
