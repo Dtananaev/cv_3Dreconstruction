@@ -3,8 +3,8 @@ Computer vision: 3D reconstruction
 
 The tools for 3D reconstruction.
 
-[![Build Status](https://travis-ci.org/Dtananaev/cv_segmentation.svg?branch=master)](https://travis-ci.org/Dtananaev/cv_segmentation)
-[![BSD2 License](http://img.shields.io/badge/license-BSD2-brightgreen.svg)](https://github.com/Dtananaev/k_means/blob/master/LICENSE.md) 
+[![Build Status](https://travis-ci.org/Dtananaev/cv_3Dreconstruction.svg?branch=master)](https://travis-ci.org/Dtananaev/cv_3Dreconstruction)
+[![BSD2 License](http://img.shields.io/badge/license-BSD2-brightgreen.svg)](https://github.com/Dtananaev/cv_3Dreconstruction/blob/master/LICENSE.md) 
 
 * Disparity estimation naive - the naive implementation of the disparity estmation by using three different distances: Euclidian distance, absolute distance and cross entrophy
 <p align="center">
