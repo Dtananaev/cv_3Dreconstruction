@@ -13,14 +13,14 @@ The tools for 3D reconstruction.
   <img src="https://github.com/Dtananaev/cv_3Dreconstruction/blob/master/Disparity_naive/pictures/absolutedist.jpg" width="120"/>
    <img src="https://github.com/Dtananaev/cv_3Dreconstruction/blob/master/Disparity_naive/pictures/entrophyresult.jpg" width="120"/>
    <img src="https://github.com/Dtananaev/cv_3Dreconstruction/blob/master/Disparity_naive/pictures/dispGT.JPG" width="120"/>   
+   
 </p>
 
-     * To install use in terminal: 
+    * To install use in terminal: 
          * cd Disparity_naive
          * make
-     * To run: ./disp name_of_fileLeft(without .ppm) name_of_fileRight(without .ppm) patch_size
-     
-     
+    * To run: ./disp name_of_fileLeft(without .ppm) name_of_fileRight(without .ppm) patch_size
+         
 * Camera calibration example by given 5 different images of checkerboard pattern
 <p align="center">
   <img src="https://github.com/Dtananaev/cv_3Dreconstruction/blob/master/camera_calibration/pictures/CalibIm1.jpg" width="120"/>
@@ -28,36 +28,37 @@ The tools for 3D reconstruction.
    <img src="https://github.com/Dtananaev/cv_3Dreconstruction/blob/master/camera_calibration/pictures/CalibIm3.jpg" width="120"/>
    <img src="https://github.com/Dtananaev/cv_3Dreconstruction/blob/master/camera_calibration/pictures/CalibIm4.jpg" width="120"/>   
    <img src="https://github.com/Dtananaev/cv_3Dreconstruction/blob/master/camera_calibration/pictures/CalibIm5.jpg" width="120"/> 
+   
 </p>
 
-     * To install use in terminal: 
+    * To install use in terminal: 
          * cd camera_calibration
          * make
-     * To run: ./calib
+    * To run: ./calib
      
 * Epipolar geometry estimation example 
 <p align="center">
   <img src="https://github.com/Dtananaev/cv_3Dreconstruction/blob/master/epipolar_geometry/pictures/Left_epipol.jpg" width="350"/>
   <img src="https://github.com/Dtananaev/cv_3Dreconstruction/blob/master/epipolar_geometry/pictures/Right_epipol.jpg" width="350"/>
-
+  
 </p>
 
-     * To install use in terminal: 
+    * To install use in terminal: 
          * cd epipolar_geometry
          * make
-     * To run: ./epipol
+    * To run: ./epipol
      
 * Message passing algorithm for disparity estimation. 
 <p align="center">
   <img src="https://github.com/Dtananaev/cv_3Dreconstruction/blob/master/message_passing/pictures/result.jpg" width="350"/>
   <img src="https://github.com/Dtananaev/cv_3Dreconstruction/blob/master/Disparity_naive/pictures/dispGT.JPG" width="350"/>
-
+  
 </p>
 
     * To install use in terminal: 
          * cd message_passing
          * make
-     * To run: ./sgm
+    * To run: ./sgm
      
      
      
