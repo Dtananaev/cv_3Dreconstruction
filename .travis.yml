@@ -21,6 +21,13 @@ script:
   - cd Disparity_naive
   - make
   - cd ..
-
-
+  - cd camera_calibration
+  - make
+  - cd ..
+  - cd epipolar_geometry
+  - make
+  - cd ..
+  - cd message_passing
+  - make
+  - cd ..
 
