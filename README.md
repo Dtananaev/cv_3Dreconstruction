@@ -14,6 +14,7 @@ The tools for 3D reconstruction.
    <img src="https://github.com/Dtananaev/cv_3Dreconstruction/blob/master/Disparity_naive/pictures/entrophyresult.jpg" width="120"/>
    <img src="https://github.com/Dtananaev/cv_3Dreconstruction/blob/master/Disparity_naive/pictures/dispGT.JPG" width="120"/>   
 </p>
+
      * To install use in terminal: 
          * cd Disparity_naive
          * make
@@ -28,6 +29,7 @@ The tools for 3D reconstruction.
    <img src="https://github.com/Dtananaev/cv_3Dreconstruction/blob/master/camera_calibration/pictures/CalibIm4.jpg" width="120"/>   
    <img src="https://github.com/Dtananaev/cv_3Dreconstruction/blob/master/camera_calibration/pictures/CalibIm5.jpg" width="120"/> 
 </p>
+
      * To install use in terminal: 
          * cd camera_calibration
          * make
@@ -39,6 +41,7 @@ The tools for 3D reconstruction.
   <img src="https://github.com/Dtananaev/cv_3Dreconstruction/blob/master/epipolar_geometry/pictures/Right_epipol.jpg" width="350"/>
 
 </p>
+
      * To install use in terminal: 
          * cd epipolar_geometry
          * make
@@ -50,7 +53,8 @@ The tools for 3D reconstruction.
   <img src="https://github.com/Dtananaev/cv_3Dreconstruction/blob/master/Disparity_naive/pictures/dispGT.JPG" width="350"/>
 
 </p>
-     * To install use in terminal: 
+
+    * To install use in terminal: 
          * cd message_passing
          * make
      * To run: ./sgm
